@@ -1,4 +1,4 @@
-name: Build GKI ARM64 Module (Clang)
+name: Build ARM64 GKI Module (Linux 6.12)
 
 on:
   push:
@@ -12,54 +12,38 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install deps
         run: |
           sudo apt update
           sudo apt install -y \
-            clang \
-            lld \
-            llvm \
-            make \
-            bc \
-            bison \
-            flex \
-            libssl-dev \
-            libelf-dev \
-            pahole \
-            git
+            clang llvm lld \
+            make bc bison flex \
+            libssl-dev libelf-dev pahole git
 
-      # ❶ 下载 Linux 6.12 源码
       - name: Clone Linux 6.12
         run: |
           git clone --depth=1 --branch v6.12 \
             https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
             linux-6.12
 
-      # ❷ 准备内核（GKI 风格）
-      - name: Prepare kernel config
+      - name: Prepare kernel
         working-directory: linux-6.12
         run: |
           export ARCH=arm64
           export LLVM=1
           export LLVM_IAS=1
-
           make defconfig
           make modules_prepare
 
-      # ❸ 编译 ko
       - name: Build hello.ko
         run: |
           export ARCH=arm64
           export LLVM=1
           export LLVM_IAS=1
+          make -C linux-6.12 M=$GITHUB_WORKSPACE/hello modules
 
-          make -C linux-6.12 \
-            M=$GITHUB_WORKSPACE/hello \
-            modules
-
-      # ❹ 上传产物
-      - name: Upload ko
+      - name: Upload module
         uses: actions/upload-artifact@v4
         with:
-          name: hello-ko-arm64
+          name: hello-ko
           path: hello/hello.ko
