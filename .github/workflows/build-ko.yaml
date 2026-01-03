@@ -1,0 +1,65 @@
+name: build-linux-6.12-arm64-ko
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install deps
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          build-essential \
+          bc \
+          bison \
+          flex \
+          libssl-dev \
+          libelf-dev \
+          dwarves \
+          wget \
+          gcc-aarch64-linux-gnu
+
+    - name: Download Linux 6.12
+      run: |
+        wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz
+        tar -xf linux-6.12.tar.xz
+
+    - name: Configure minimal kernel
+      run: |
+        cd linux-6.12
+        make ARCH=arm64 defconfig
+
+        # 精简，只保留模块支持
+        scripts/config --enable CONFIG_MODULES
+        scripts/config --disable CONFIG_DEBUG_INFO
+        scripts/config --disable CONFIG_KALLSYMS
+        scripts/config --disable CONFIG_BPF
+        scripts/config --disable CONFIG_KPROBES
+
+        make ARCH=arm64 olddefconfig
+
+    - name: Prepare kernel for modules
+      run: |
+        cd linux-6.12
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
+
+    - name: Build ko
+      run: |
+        make -C linux-6.12 \
+          ARCH=arm64 \
+          CROSS_COMPILE=aarch64-linux-gnu- \
+          M=$PWD/kernel \
+          modules
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: hello-ko
+        path: kernel/*.ko
