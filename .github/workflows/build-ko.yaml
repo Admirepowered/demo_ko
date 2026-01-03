@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y \
@@ -25,9 +25,17 @@ jobs:
             flex \
             libssl-dev \
             libelf-dev \
-            pahole
+            pahole \
+            git
 
-      # 1️⃣ 准备内核 .config（GKI 风格最小）
+      # ❶ 下载 Linux 6.12 源码
+      - name: Clone Linux 6.12
+        run: |
+          git clone --depth=1 --branch v6.12 \
+            https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git \
+            linux-6.12
+
+      # ❷ 准备内核（GKI 风格）
       - name: Prepare kernel config
         working-directory: linux-6.12
         run: |
@@ -38,8 +46,8 @@ jobs:
           make defconfig
           make modules_prepare
 
-      # 2️⃣ 编译 ko
-      - name: Build hello.ko (ARM64 GKI)
+      # ❸ 编译 ko
+      - name: Build hello.ko
         run: |
           export ARCH=arm64
           export LLVM=1
@@ -49,10 +57,9 @@ jobs:
             M=$GITHUB_WORKSPACE/hello \
             modules
 
-      # 3️⃣ 收集产物
+      # ❹ 上传产物
       - name: Upload ko
         uses: actions/upload-artifact@v4
         with:
           name: hello-ko-arm64
-          path: |
-            hello/hello.ko
+          path: hello/hello.ko
