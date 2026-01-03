@@ -1,4 +1,4 @@
-name: build-linux-6.12-arm64-ko
+name: build-gki-ko
 
 on:
   push:
@@ -9,57 +9,39 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
     - name: Install deps
       run: |
-        sudo apt update
-        sudo apt install -y \
+        sudo apt-get update
+        sudo apt-get install -y \
           build-essential \
           bc \
           bison \
           flex \
           libssl-dev \
-          libelf-dev \
-          dwarves \
-          wget \
-          gcc-aarch64-linux-gnu
+          libelf-dev
 
-    - name: Download Linux 6.12
+    - name: Clone Android GKI kernel
       run: |
-        wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.12.tar.xz
-        tar -xf linux-6.12.tar.xz
+        git clone --depth=1 https://android.googlesource.com/kernel/common \
+          -b android14-6.1 gki
 
-    - name: Configure minimal kernel
+    - name: Prepare GKI config
       run: |
-        cd linux-6.12
-        make ARCH=arm64 defconfig
+        cd gki
+        make ARCH=arm64 gki_defconfig
+        make ARCH=arm64 modules_prepare
 
-        # 精简，只保留模块支持
-        scripts/config --enable CONFIG_MODULES
-        scripts/config --disable CONFIG_DEBUG_INFO
-        scripts/config --disable CONFIG_KALLSYMS
-        scripts/config --disable CONFIG_BPF
-        scripts/config --disable CONFIG_KPROBES
-
-        make ARCH=arm64 olddefconfig
-
-    - name: Prepare kernel for modules
+    - name: Build hello.ko (GKI)
       run: |
-        cd linux-6.12
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules_prepare
-
-    - name: Build ko
-      run: |
-        make -C linux-6.12 \
-          ARCH=arm64 \
-          CROSS_COMPILE=aarch64-linux-gnu- \
-          M=$PWD/kernel \
+        cd gki
+        make ARCH=arm64 \
+          M=$GITHUB_WORKSPACE/kernel \
           modules
 
-    - name: Upload artifact
+    - name: Upload ko
       uses: actions/upload-artifact@v4
       with:
-        name: hello-ko
-        path: kernel/*.ko
+        name: gki-hello-ko
+        path: gki/**/*.ko
